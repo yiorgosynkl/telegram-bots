@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # pylint: disable=unused-argument
 # This program is dedicated to the public domain under the CC0 license.
@@ -26,6 +25,7 @@ To use the JobQueue, you must install PTB via
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+
 # Define a few command handlers. These usually take the two arguments update and
 # context.
 # Best practice would be to replace context with an underscore,
@@ -40,7 +40,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send the alarm message."""
     job = context.job
-    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
+    await context.bot.send_message(
+        job.chat_id, text=f"Beep! {job.data} seconds are over!"
+    )
 
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -60,11 +62,15 @@ async def set_timer_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # args[0] should contain the time for the timer in seconds
         due = float(context.args[0])
         if due < 0:
-            await update.effective_message.reply_text("Sorry we can not go back to future!")
+            await update.effective_message.reply_text(
+                "Sorry we can not go back to future!"
+            )
             return
 
         job_removed = remove_job_if_exists(str(chat_id), context)
-        context.job_queue.run_once(alarm, due, chat_id=chat_id, name=str(chat_id), data=due)
+        context.job_queue.run_once(
+            alarm, due, chat_id=chat_id, name=str(chat_id), data=due
+        )
 
         text = "Timer successfully set!"
         if job_removed:
@@ -75,9 +81,13 @@ async def set_timer_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.effective_message.reply_text("Usage: /set <seconds>")
 
 
-async def unset_timer_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def unset_timer_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Remove the job if the user changed their mind."""
     chat_id = update.message.chat_id
     job_removed = remove_job_if_exists(str(chat_id), context)
-    text = "Timer successfully cancelled!" if job_removed else "You have no active timer."
+    text = (
+        "Timer successfully cancelled!" if job_removed else "You have no active timer."
+    )
     await update.message.reply_text(text)
