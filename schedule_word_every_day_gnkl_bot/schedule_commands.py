@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
 
+
 async def schedule_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send the alarm message."""
     job = context.job
@@ -28,7 +29,6 @@ async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         user_time = context.args[1]  # Second input parameter (HH:MM format)
         days_amount = int(context.args[2])  # Third input parameter (number of days)
 
-
         # Convert user_time to a datetime.time object
         time_parts = user_time.split(":")
         user_time_obj = time(hour=int(time_parts[0]), minute=int(time_parts[1]))
@@ -39,19 +39,19 @@ async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if first_execution_time < now:
             first_execution_time += timedelta(days=1)
         delay = (first_execution_time - now).total_seconds()
-        
+
         jobs_removed = remove_jobs_if_exist(str(chat_id), context)
         # context.job_queue.run_once(alarm, due, chat_id=chat_id, name=str(chat_id), data=due)
 
         for day in range(days_amount):
             job_delay = delay + day * 86400
             context.job_queue.run_once(
-                schedule_callback, 
+                schedule_callback,
                 job_delay,  # 86400 seconds in a day
-                chat_id=chat_id, 
-                name=str(chat_id), 
+                chat_id=chat_id,
+                name=str(chat_id),
                 data=word,
-        )
+            )
 
         text = "Schedule successfully set!"
         if jobs_removed:
@@ -59,12 +59,18 @@ async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.effective_message.reply_text(text)
 
     except (IndexError, ValueError):
-        await update.effective_message.reply_text("Usage: /schedule <seconds>")
+        await update.effective_message.reply_text("Usage: /schedule <word> <HH:MM> <times>")
 
 
-async def unschedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def unschedule_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Remove the jobs if the user changed their mind."""
     chat_id = update.message.chat_id
     job_removed = remove_jobs_if_exist(str(chat_id), context)
-    text = "Schedule successfully cancelled!" if job_removed else "You have no active schedule."
+    text = (
+        "Schedule successfully cancelled!"
+        if job_removed
+        else "You have no active schedule."
+    )
     await update.message.reply_text(text)
