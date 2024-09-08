@@ -32,6 +32,9 @@ def main() -> None:
     application.add_handler(CommandHandler("unset", unset_timer_command))
     application.add_handler(CommandHandler("schedule", schedule_command))
     application.add_handler(CommandHandler("unschedule", unschedule_command))
+    application.add_handler(CommandHandler("set_message", set_message_command))
+    application.add_handler(CommandHandler("unset_message", unset_message_command))
+    application.add_handler(CommandHandler("see_set_message", see_set_message_command))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
