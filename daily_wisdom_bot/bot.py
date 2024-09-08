@@ -25,7 +25,7 @@ async def start_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         + "I can help you set up a daily reading schedule of a book of your choice.\n"
         + "* Write `/view_series` to check the books available\n"
         + "* Write `/start_series <book> <HH:MM>` and I'll send you a daily a chapter at HH:MM to read\n"
-        + "* Write `/stop_series_command <book>` and I'll stop sending you messages for that book\n"
+        + "* Write `/stop_series <book>` and I'll stop sending you messages for that book\n"
         + "* Write `/check_my_series <book>` to see the current schedule you have\n"
         "* Write `/help` to see these commands again\n" + "Happy reading :)"
     )

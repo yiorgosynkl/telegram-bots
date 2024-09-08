@@ -179,9 +179,7 @@ async def view_series_command(
     try:
         books = get_books()
         text = "\n* ".join(["The following books exists in the library: "] + books)
-        text += (
-            "\nUse these names to select the series of your choice. Happy reading :)"
-        )
+        text += "\nUse these names to select the series of your choice. Type something like `/start_series nicomachean_ethics 08:00`. Happy reading :)"
         await update.effective_message.reply_text(text)
     except (IndexError, ValueError):
         await update.effective_message.reply_text("Usage: /view_series")
