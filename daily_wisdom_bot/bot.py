@@ -15,6 +15,7 @@ from book_commands import (
     start_series_command,
     stop_series_command,
     check_series_command,
+    view_series_command
 )
 
 
@@ -34,6 +35,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start_series", start_series_command))
     application.add_handler(CommandHandler("stop_series", stop_series_command))
     application.add_handler(CommandHandler("check_series", check_series_command))
+    application.add_handler(CommandHandler("view_series", view_series_command))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

@@ -6,6 +6,14 @@ from telegram.ext import ContextTypes
 
 from dataclasses import dataclass
 
+from utils import (
+    get_books,
+    is_part_valid,
+    get_part,
+    InvalidBookError,
+    InvalidPartError,
+)
+
 
 @dataclass
 class JobData:
@@ -15,7 +23,6 @@ class JobData:
     time: time
 
 
-# job_id: <chat_id> <book>
 def get_jobs(
     context: ContextTypes.DEFAULT_TYPE, chat_id: int, book_id: str = None
 ):  # -> List[Jobs]
@@ -39,11 +46,16 @@ def remove_jobs(
 async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     job_data = job.data
-    # TODO: search actual libary
-    await context.bot.send_message(job.chat_id, text=f"Get message for {job_data}")
-    # update for next job, if part exists
-    job_data.part += 1
-    add_job(context, job_data)
+    text = get_part(book=job_data.book_id, part=job_data.part)
+    await context.bot.send_message(job.chat_id, text=text)
+    if is_part_valid(part=job_data.part + 1, book=job_data.book_id):
+        job_data.part += 1
+        add_job(context, job_data)
+    else:
+        await context.bot.send_message(
+            job.chat_id,
+            text="Congrats, this was the last part of the series, you just completed this series :)",
+        )
 
 
 def get_delay(time):
@@ -71,9 +83,21 @@ def add_job(context: ContextTypes.DEFAULT_TYPE, job_data: JobData):
     return did_remove_jobs
 
 
+def parse_book(s):
+    if s not in get_books():
+        raise InvalidBookError
+    return s
+
+
 def parse_time(s):
     time_parts = s.split(":")
     return time(hour=int(time_parts[0]), minute=int(time_parts[1]))
+
+
+def parse_part(part, book):
+    if is_part_valid(book=book, part=part):
+        return part
+    raise InvalidPartError
 
 
 async def start_series_command(
@@ -81,12 +105,12 @@ async def start_series_command(
 ) -> None:
     try:
         chat_id = update.effective_message.chat_id
-        book_id = context.args[
-            0
-        ]  # First input parameter (book_id), TODO: mapping arg to ids
+        book_id = parse_book(
+            context.args[0]
+        )  # First input parameter (book_id), TODO: mapping arg to ids
         user_time = parse_time(context.args[1])  # Second input parameter (HH:MM format)
-        book_part = (
-            int(context.args[2]) if len(context.args) >= 3 else 0
+        book_part = parse_part(
+            int(context.args[2]) if len(context.args) >= 3 else 1, book_id
         )  # Optional third input parameter (starting part)
 
         job_data = JobData(
@@ -100,6 +124,14 @@ async def start_series_command(
             text += " (Old schedule was removed)."
         await update.effective_message.reply_text(text)
 
+    except InvalidBookError:
+        await update.effective_message.reply_text(
+            "This series doesn't exist. Check the available series with /view_series."
+        )
+    except InvalidPartError:
+        await update.effective_message.reply_text(
+            "This part number doesn't exist for this series."
+        )
     except (IndexError, ValueError):
         await update.effective_message.reply_text(
             "Usage: /start_series <book> <HH:MM> <?part>"
@@ -139,3 +171,17 @@ async def stop_series_command(
         )
     except (IndexError, ValueError):
         await update.effective_message.reply_text("Usage: /stop_series <?book>")
+
+
+async def view_series_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        books = get_books()
+        text = "\n* ".join(["The following books exists in the library: "] + books)
+        text += (
+            "\nUse these names to select the series of your choice. Happy reading :)"
+        )
+        await update.effective_message.reply_text(text)
+    except (IndexError, ValueError):
+        await update.effective_message.reply_text("Usage: /view_series")
