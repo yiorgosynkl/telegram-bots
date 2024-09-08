@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
+import logging
 from datetime import datetime, time, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
-
-from dataclasses import dataclass
 
 from utils import (
     get_books,
@@ -13,14 +12,36 @@ from utils import (
     InvalidBookError,
     InvalidPartError,
 )
+from job_utils import JobData, store_jobs, retrieve_jobs
 
 
-@dataclass
-class JobData:
-    book_id: str
-    part: int
-    chat_id: int
-    time: time
+async def start_up_callback(context: ContextTypes.DEFAULT_TYPE):
+    job_datas = retrieve_jobs()
+    for job_data in job_datas:
+        if job_data:
+            add_job(context=context, job_data=job_data)
+
+
+async def periodic_save_callback(context):
+    job_datas = [job.data for job in context.job_queue.jobs()]
+    store_jobs(job_datas)
+    # logging.info(f"Completed periodic save of jobs. {job_datas=}")
+
+
+# only one job per <chat_id>+<book> is allowed in the queue
+def add_job(context: ContextTypes.DEFAULT_TYPE, job_data: JobData):
+    did_remove_jobs = remove_jobs(
+        context, chat_id=job_data.chat_id, book_id=job_data.book_id
+    )
+    job_delay = get_delay(job_data.time)
+    context.job_queue.run_once(
+        job_callback,
+        job_delay,
+        chat_id=job_data.chat_id,
+        name=str(job_data.chat_id),
+        data=job_data,
+    )
+    return did_remove_jobs
 
 
 def get_jobs(
@@ -47,7 +68,7 @@ async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     job_data = job.data
     text = get_part(book=job_data.book_id, part=job_data.part)
-    await context.bot.send_message(job.chat_id, text=text)
+    await context.bot.send_message(job_data.chat_id, text=text)
     if is_part_valid(part=job_data.part + 1, book=job_data.book_id):
         job_data.part += 1
         add_job(context, job_data)
@@ -65,22 +86,6 @@ def get_delay(time):
         first_execution_time += timedelta(days=1)
     delay = (first_execution_time - now).total_seconds()
     return delay
-
-
-# only one job per <chat_id>+<book> is allowed in the queue
-def add_job(context: ContextTypes.DEFAULT_TYPE, job_data: JobData):
-    did_remove_jobs = remove_jobs(
-        context, chat_id=job_data.chat_id, book_id=job_data.book_id
-    )
-    job_delay = get_delay(job_data.time)
-    context.job_queue.run_once(
-        job_callback,
-        job_delay,
-        chat_id=job_data.chat_id,
-        name=str(job_data.chat_id),
-        data=job_data,
-    )
-    return did_remove_jobs
 
 
 def parse_book(s):

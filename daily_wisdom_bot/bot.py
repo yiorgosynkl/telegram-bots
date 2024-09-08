@@ -10,13 +10,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, JobQueue
 from book_commands import (
     start_series_command,
     stop_series_command,
     check_series_command,
     view_series_command,
+    start_up_callback,
+    periodic_save_callback,
 )
+from job_utils import JobData, store_jobs, retrieve_jobs
 
 
 async def start_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -35,6 +38,11 @@ async def start_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     """Run bot."""
     application = ApplicationBuilder().token(environ["BOT_TOKEN"]).build()
+
+    application.job_queue.run_once(callback=start_up_callback, when=5)
+    application.job_queue.run_repeating(
+        callback=periodic_save_callback, interval=60, first=30
+    )
 
     # Register the command handler with the dispatcher
     application.add_handler(CommandHandler(["start", "help"], start_command))
