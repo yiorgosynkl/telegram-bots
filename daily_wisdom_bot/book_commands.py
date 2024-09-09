@@ -64,11 +64,31 @@ def remove_jobs(
     return True
 
 
+def split_in_texts(ss, max_length=4000):  # 4096 the limit in telegram
+    if len(ss) < max_length:
+        return [ss]
+
+    WPT = 200  # chunks count: words per text (should check to send chunk messages)
+    chunks = []
+    current_chunk = ""
+    for i, word in enumerate(ss.split()):
+        current_chunk += word + " "
+        if i % WPT == WPT - 1:  # completed a text
+            chunks.append(current_chunk.strip())
+            current_chunk = ""
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
+
 async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     job_data = job.data
-    text = get_part(book=job_data.book_id, part=job_data.part)
-    await context.bot.send_message(job_data.chat_id, text=text)
+    full_text = get_part(book=job_data.book_id, part=job_data.part)
+    texts = split_in_texts(full_text)
+    for text in texts:
+        await context.bot.send_message(job_data.chat_id, text=text)
     if is_part_valid(part=job_data.part + 1, book=job_data.book_id):
         job_data.part += 1
         add_job(context, job_data)
