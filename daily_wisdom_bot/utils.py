@@ -62,7 +62,7 @@ def get_parts_stems(book_id: str):
 
 def get_part(book_id: str, part: int):
     book_data = get_book(book_id=book_id)
-    if part < book_data.max_part:
+    if not 1 <= part <= book_data.max_part:
         raise InvalidPartError
     filestem = str(part).zfill(FILE_STEM_LG)
     pth = (
