@@ -7,8 +7,9 @@ from telegram.ext import ContextTypes
 
 from utils import (
     get_books,
-    is_part_valid,
+    get_book,
     get_part,
+    BookData,
     InvalidBookError,
     InvalidPartError,
 )
@@ -85,11 +86,12 @@ def split_in_texts(ss, max_length=4000):  # 4096 the limit in telegram
 async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     job_data = job.data
-    full_text = get_part(book=job_data.book_id, part=job_data.part)
+    book_data = get_book(job_data.book_id)
+    full_text = get_part(book_id=job_data.book_id, part=job_data.part)
     texts = split_in_texts(full_text)
     for text in texts:
         await context.bot.send_message(job_data.chat_id, text=text)
-    if is_part_valid(part=job_data.part + 1, book=job_data.book_id):
+    if 1 <= job_data.part + 1 <= book_data.max_part:
         job_data.part += 1
         add_job(context, job_data)
     else:
@@ -108,10 +110,11 @@ def get_delay(time):
     return delay
 
 
-def parse_book(s):
-    if s not in get_books():
+def parse_book(tag: str) -> BookData:
+    book_tags = {b.tag: b for b in get_books()}  # tag to book id
+    if tag not in book_tags:
         raise InvalidBookError
-    return s
+    return book_tags[tag]
 
 
 def parse_time(s):
@@ -119,8 +122,8 @@ def parse_time(s):
     return time(hour=int(time_parts[0]), minute=int(time_parts[1]))
 
 
-def parse_part(part, book):
-    if is_part_valid(book=book, part=part):
+def parse_part(part: int, book_data: BookData) -> int:
+    if 1 <= part <= book_data.max_part:
         return part
     raise InvalidPartError
 
@@ -130,21 +133,22 @@ async def start_series_command(
 ) -> None:
     try:
         chat_id = update.effective_message.chat_id
-        book_id = parse_book(
+        book_data = parse_book(
             context.args[0]
         )  # First input parameter (book_id), TODO: mapping arg to ids
         user_time = parse_time(context.args[1])  # Second input parameter (HH:MM format)
         book_part = parse_part(
-            int(context.args[2]) if len(context.args) >= 3 else 1, book_id
+            int(context.args[2]) if len(context.args) >= 3 else 1, book_data
         )  # Optional third input parameter (starting part)
 
         job_data = JobData(
-            chat_id=chat_id, book_id=book_id, time=user_time, part=book_part
+            chat_id=chat_id, book_id=book_data.id, time=user_time, part=book_part
         )
 
         did_remove_old_jobs = add_job(context, job_data)
 
-        text = f"You succussfully set a daily schedule to read {book_id}, next message will be at {user_time}"
+        text = f"You succussfully set a daily schedule to read {book_data.name} by {book_data.author}."
+        text += f"\nNext message will be at {user_time.hour:02d}:{user_time.minute:02d}"
         if did_remove_old_jobs:
             text += " (Old schedule was removed)."
         await update.effective_message.reply_text(text)
@@ -203,8 +207,12 @@ async def view_series_command(
 ) -> None:
     try:
         books = get_books()
-        text = "\n* ".join(["The following books exists in the library: "] + books)
-        text += "\nUse these names to select the series of your choice. Type something like `/start_series nicomachean_ethics 08:00`. Happy reading :)"
+        text = "The following books exists in the library:"
+        text += "\n* " + "\n* ".join(
+            [f"{b.tag} : {b.name} by {b.author} ({b.max_part} parts)" for b in books]
+        )
+        text += "\nUse these names to select the series of your choice."
+        text += "\nType something like `/start_series zrb 08:00`. Happy reading :)"
         await update.effective_message.reply_text(text)
     except (IndexError, ValueError):
         await update.effective_message.reply_text("Usage: /view_series")
