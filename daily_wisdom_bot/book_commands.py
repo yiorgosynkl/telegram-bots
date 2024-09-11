@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-from typing import List
+from typing import List, Tuple
 from datetime import datetime, time, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -48,7 +48,7 @@ def add_job(context: ContextTypes.DEFAULT_TYPE, job_data: JobData):
 
 def get_jobs(
     context: ContextTypes.DEFAULT_TYPE, chat_id: int, book_id: str = None
-) -> List[JobData]:
+) -> Tuple[JobData]:
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     if book_id == None:
         return current_jobs
@@ -108,6 +108,11 @@ async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
+def get_future_minute():
+    future = datetime.now() + timedelta(minutes=1)
+    return time(hour=future.hour, minute=future.minute)
+
+
 def get_delay(time):
     now = datetime.now()
     first_execution_time = datetime.combine(now.date(), time)
@@ -140,10 +145,12 @@ async def begin_series_command(
 ) -> None:
     try:
         chat_id = update.effective_message.chat_id
-        book_data = parse_book(
-            context.args[0]
-        )  # First input parameter (book_id), TODO: mapping arg to ids
-        user_time = parse_time(context.args[1])  # Second input parameter (HH:MM format)
+        book_data = parse_book(context.args[0])  # First input parameter (book_tag)
+        user_time = (
+            parse_time(context.args[1])
+            if len(context.args) >= 2
+            else get_future_minute()
+        )  # Optional second input parameter (HH:MM format)
         book_part = parse_part(
             int(context.args[2]) if len(context.args) >= 3 else 1, book_data
         )  # Optional third input parameter (starting part)
@@ -170,7 +177,7 @@ async def begin_series_command(
         )
     except (IndexError, ValueError):
         await update.effective_message.reply_text(
-            "Usage: /begin <book> <HH:MM> <?part>"
+            "Example: /begin sid 09:00\n(usage: /begin <book> <?HH:MM> <?part>)"
         )
 
 
@@ -197,7 +204,7 @@ async def upcoming_series_command(
             text if text else "No messages scheduled"
         )
     except (IndexError, ValueError):
-        await update.effective_message.reply_text("Usage: /check_series <?book>")
+        await update.effective_message.reply_text("Example: /upcoming\n(usage: /upcoming <?book>)")
 
 
 async def end_series_command(
