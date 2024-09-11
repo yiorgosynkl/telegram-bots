@@ -12,9 +12,9 @@ load_dotenv()
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from book_commands import (
-    start_series_command,
-    stop_series_command,
-    check_series_command,
+    begin_series_command,
+    end_series_command,
+    upcoming_series_command,
     view_series_command,
     start_up_callback,
     periodic_save_callback,
@@ -26,10 +26,10 @@ async def start_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         f"Hi, I'm {environ['BOT_USERNAME']} but you can call me Socrates!\n"
         + "I can help you set up a daily reading schedule of a book of your choice.\n"
-        + "* Write `/view_series` to check the books available\n"
-        + "* Write `/start_series <book> <HH:MM>` and I'll send you a daily a chapter at HH:MM to read\n"
-        + "* Write `/stop_series <book>` and I'll stop sending you messages for that book\n"
-        + "* Write `/check_my_series <book>` to see the current schedule you have\n"
+        + "* Write `/view` to check the book series available\n"
+        + "* Write `/begin <book> <HH:MM>` and I'll send you a daily a chapter at HH:MM to read\n"
+        + "* Write `/end <book>` and I'll stop sending you messages for that book series\n"
+        + "* Write `/upcoming` to see your scheduled messages\n"
         "* Write `/help` to see these commands again\n" + "Happy reading :)"
     )
 
@@ -46,10 +46,18 @@ def main() -> None:
 
     # Register the command handler with the dispatcher
     application.add_handler(CommandHandler(["start", "help"], start_command))
-    application.add_handler(CommandHandler("start_series", start_series_command))
-    application.add_handler(CommandHandler("stop_series", stop_series_command))
-    application.add_handler(CommandHandler("check_my_series", check_series_command))
-    application.add_handler(CommandHandler("view_series", view_series_command))
+    application.add_handler(
+        CommandHandler(["begin", "begin_series"], begin_series_command)
+    )
+    application.add_handler(
+        CommandHandler(["end", "end_series"], end_series_command)
+    )
+    application.add_handler(
+        CommandHandler(["upcoming", "upcoming_series"], upcoming_series_command)
+    )
+    application.add_handler(
+        CommandHandler(["view", "view_series"], view_series_command)
+    )
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

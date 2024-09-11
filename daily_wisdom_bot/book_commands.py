@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import logging
+from typing import List
 from datetime import datetime, time, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -47,7 +48,7 @@ def add_job(context: ContextTypes.DEFAULT_TYPE, job_data: JobData):
 
 def get_jobs(
     context: ContextTypes.DEFAULT_TYPE, chat_id: int, book_id: str = None
-):  # -> List[Jobs]
+) -> List[JobData]:
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     if book_id == None:
         return current_jobs
@@ -65,22 +66,28 @@ def remove_jobs(
     return True
 
 
-def split_in_texts(ss, max_length=4000):  # 4096 the limit in telegram
-    if len(ss) < max_length:
-        return [ss]
-
-    WPT = 200  # chunks count: words per text (should check to send chunk messages)
-    chunks = []
-    current_chunk = ""
-    for i, word in enumerate(ss.split()):
-        current_chunk += word + " "
-        if i % WPT == WPT - 1:  # completed a text
+# telegram limit is 4096 characters
+# further more, I shouldn't send more than 30 messages, othwerwise it leads to timeout
+def split_in_texts(msg: str, max_length: int = 4000):  # 4096 the limit in telegram
+    def split_with_limit(text: str, max_length: int) -> List[str]:
+        if len(text) < max_length:
+            return [text]
+        chunks = []
+        current_chunk = ""
+        for word in text.split(" "):
+            if word == "":
+                continue
+            if len(current_chunk) + len(word) + 1 > max_length:
+                chunks.append(current_chunk.strip())
+                current_chunk = ""
+            current_chunk += word + " "
+        if current_chunk:
             chunks.append(current_chunk.strip())
-            current_chunk = ""
-    if current_chunk:
-        chunks.append(current_chunk.strip())
+        return chunks
 
-    return chunks
+    # replace \n\n with \n and \n with spaces
+    new_msg = "\n".join([l.replace("\n", " ") for l in msg.split("\n\n") if l != ""])
+    return split_with_limit(new_msg, max_length)
 
 
 async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -128,7 +135,7 @@ def parse_part(part: int, book_data: BookData) -> int:
     raise InvalidPartError
 
 
-async def start_series_command(
+async def begin_series_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     try:
@@ -163,11 +170,11 @@ async def start_series_command(
         )
     except (IndexError, ValueError):
         await update.effective_message.reply_text(
-            "Usage: /start_series <book> <HH:MM> <?part>"
+            "Usage: /begin <book> <HH:MM> <?part>"
         )
 
 
-async def check_series_command(
+async def upcoming_series_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     try:
@@ -176,7 +183,16 @@ async def check_series_command(
             context.args[0] if len(context.args) >= 1 else None
         )  # Optional irst input parameter (book_id)
         jobs = get_jobs(context, chat_id=chat_id, book_id=book_id)
-        text = " & ".join([str(job.data) for job in jobs])
+        if len(jobs) == 0:
+            await update.effective_message.reply_text("No messages scheduled")
+            return
+
+        def repr_job(job):
+            book_data = get_book(book_id=job.data.book_id)
+            return f"Part {job.data.part} of {book_data.name} by {book_data.author} will be delivered at {job.data.time.hour:02d}:{job.data.time.minute:02d}"
+
+        text = "Upcoming messages: "
+        text += "\n* " + "\n* ".join([repr_job(job) for job in jobs])
         await update.effective_message.reply_text(
             text if text else "No messages scheduled"
         )
@@ -184,14 +200,14 @@ async def check_series_command(
         await update.effective_message.reply_text("Usage: /check_series <?book>")
 
 
-async def stop_series_command(
+async def end_series_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     try:
         chat_id = update.effective_message.chat_id
         book_id = (
-            context.args[0] if len(context.args) >= 0 else None
-        )  # Optional irst input parameter (book_id)
+            context.args[0] if len(context.args) >= 1 else None
+        )  # Optional first input parameter (book_id)
         did_remove_jobs = remove_jobs(context, chat_id=chat_id, book_id=book_id)
         await update.effective_message.reply_text(
             f"Successfully removed scheduled messages for {book_id if book_id else 'all book'} series"
@@ -199,7 +215,7 @@ async def stop_series_command(
             else "No relevant scheduled messages found"
         )
     except (IndexError, ValueError):
-        await update.effective_message.reply_text("Usage: /stop_series <?book>")
+        await update.effective_message.reply_text("Usage: /end <?book>")
 
 
 async def view_series_command(
@@ -212,7 +228,7 @@ async def view_series_command(
             [f"{b.tag} : {b.name} by {b.author} ({b.max_part} parts)" for b in books]
         )
         text += "\nUse these names to select the series of your choice."
-        text += "\nType something like `/start_series zrb 08:00`. Happy reading :)"
+        text += "\nType something like `/begin zrb 08:00`. Happy reading :)"
         await update.effective_message.reply_text(text)
     except (IndexError, ValueError):
-        await update.effective_message.reply_text("Usage: /view_series")
+        await update.effective_message.reply_text("Usage: /view")
