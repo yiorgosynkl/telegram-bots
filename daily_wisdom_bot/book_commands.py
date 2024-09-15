@@ -52,6 +52,8 @@ def get_jobs(
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     if book_id == None:
         return current_jobs
+    for job in current_jobs:
+        print(f"{job.data=} ({job})")
     return tuple(job for job in current_jobs if job.data.book_id == book_id)
 
 
@@ -169,7 +171,7 @@ async def begin_series_command(
 
     except InvalidBookError:
         await update.effective_message.reply_text(
-            "This series doesn't exist. Check the available series with /view_series."
+            "This series doesn't exist. Check the available series with `/view`."
         )
     except InvalidPartError:
         await update.effective_message.reply_text(
@@ -186,10 +188,7 @@ async def upcoming_series_command(
 ) -> None:
     try:
         chat_id = update.effective_message.chat_id
-        book_id = (
-            context.args[0] if len(context.args) >= 1 else None
-        )  # Optional irst input parameter (book_id)
-        jobs = get_jobs(context, chat_id=chat_id, book_id=book_id)
+        jobs = get_jobs(context, chat_id=chat_id, book_id=None)
         if len(jobs) == 0:
             await update.effective_message.reply_text("No messages scheduled")
             return
@@ -204,7 +203,7 @@ async def upcoming_series_command(
             text if text else "No messages scheduled"
         )
     except (IndexError, ValueError):
-        await update.effective_message.reply_text("Example: /upcoming\n(usage: /upcoming <?book>)")
+        await update.effective_message.reply_text("Usage: /upcoming)")
 
 
 async def end_series_command(
@@ -212,17 +211,19 @@ async def end_series_command(
 ) -> None:
     try:
         chat_id = update.effective_message.chat_id
-        book_id = (
-            context.args[0] if len(context.args) >= 1 else None
-        )  # Optional first input parameter (book_id)
-        did_remove_jobs = remove_jobs(context, chat_id=chat_id, book_id=book_id)
+        book_data = parse_book(context.args[0])  # First input parameter (book_tag)
+        did_remove_jobs = remove_jobs(context, chat_id=chat_id, book_id=book_data.id)
         await update.effective_message.reply_text(
-            f"Successfully removed scheduled messages for {book_id if book_id else 'all book'} series"
+            f"Successfully removed scheduled messages for {book_data.name}"
             if did_remove_jobs
             else "No relevant scheduled messages found"
         )
+    except InvalidBookError:
+        await update.effective_message.reply_text(
+            "This series doesn't exist. Check the available series with `/view`."
+        )
     except (IndexError, ValueError):
-        await update.effective_message.reply_text("Usage: /end <?book>")
+        await update.effective_message.reply_text("Usage: /end <book>")
 
 
 async def view_series_command(
