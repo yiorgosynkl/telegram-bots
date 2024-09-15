@@ -52,8 +52,6 @@ def get_jobs(
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     if book_id == None:
         return current_jobs
-    for job in current_jobs:
-        print(f"{job.data=} ({job})")
     return tuple(job for job in current_jobs if job.data.book_id == book_id)
 
 
