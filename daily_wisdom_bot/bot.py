@@ -16,6 +16,7 @@ from book_commands import (
     end_series_command,
     upcoming_series_command,
     view_series_command,
+    get_next_series_command,
     start_up_callback,
     periodic_save_callback,
 )
@@ -27,9 +28,10 @@ async def start_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         f"Hi, I'm {environ['BOT_USERNAME']} but you can call me Socrates!\n"
         + "I can help you set up a daily reading schedule of a book of your choice.\n"
         + "* Write `/view` to check the book series available\n"
-        + "* Write `/begin <book> <HH:MM>` and I'll send you a daily a chapter at HH:MM to read\n"
+        + "* Write `/begin <book> <HH:MM>` and I'll send you a daily a chapter at HH:MM to read. You can also write `/begin <book>` to begin series right away.\n"
         + "* Write `/end <book>` and I'll stop sending you messages for that book series\n"
         + "* Write `/upcoming` to see your scheduled messages\n"
+        + "* Write `/next <book>` to get next part of book series ahead of schedule\n"
         "* Write `/help` to see these commands again\n" + "Happy reading :)"
     )
 
@@ -49,15 +51,14 @@ def main() -> None:
     application.add_handler(
         CommandHandler(["begin", "begin_series"], begin_series_command)
     )
-    application.add_handler(
-        CommandHandler(["end", "end_series"], end_series_command)
-    )
+    application.add_handler(CommandHandler(["end", "end_series"], end_series_command))
     application.add_handler(
         CommandHandler(["upcoming", "upcoming_series"], upcoming_series_command)
     )
     application.add_handler(
         CommandHandler(["view", "view_series"], view_series_command)
     )
+    application.add_handler(CommandHandler(["next"], get_next_series_command))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

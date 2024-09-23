@@ -90,14 +90,20 @@ def split_in_texts(msg: str, max_length: int = 4000):  # 4096 the limit in teleg
     return split_with_limit(new_msg, max_length)
 
 
-async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
-    job = context.job
-    job_data = job.data
-    book_data = get_book(job_data.book_id)
+async def send_book_as_texts(
+    context: ContextTypes.DEFAULT_TYPE, job_data: JobData
+) -> None:
     full_text = get_part(book_id=job_data.book_id, part=job_data.part)
     texts = split_in_texts(full_text)
     for text in texts:
         await context.bot.send_message(job_data.chat_id, text=text)
+
+
+async def job_callback(context: ContextTypes.DEFAULT_TYPE) -> None:
+    job = context.job
+    job_data = job.data
+    await send_book_as_texts(context=context, job_data=job_data)
+    book_data = get_book(job_data.book_id)
     if 1 <= job_data.part + 1 <= book_data.max_part:
         job_data.part += 1
         add_job(context, job_data)
@@ -222,6 +228,37 @@ async def end_series_command(
         )
     except (IndexError, ValueError):
         await update.effective_message.reply_text("Usage: /end <book>")
+
+
+async def get_next_series_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        chat_id = update.effective_message.chat_id
+        book_data = parse_book(context.args[0])  # First input parameter (book_tag)
+        jobs = get_jobs(context, chat_id=chat_id, book_id=book_data.id)
+        if len(jobs) != 1:  # correct book
+            await context.bot.send_message(
+                chat_id,
+                text="This books has not been started yet",
+            )
+            return
+        job_data = jobs[0].data
+        await send_book_as_texts(context=context, job_data=job_data)
+        if 1 <= job_data.part + 1 <= book_data.max_part:
+            job_data.part += 1
+            add_job(context, job_data)
+        else:
+            await context.bot.send_message(
+                chat_id,
+                text="Congrats, this was the last part of the series, you just completed this series :)",
+            )
+    except InvalidBookError:
+        await update.effective_message.reply_text(
+            "This series doesn't exist. Check the available series with `/view`."
+        )
+    except (IndexError, ValueError):
+        await update.effective_message.reply_text("Usage: /next <book>")
 
 
 async def view_series_command(
